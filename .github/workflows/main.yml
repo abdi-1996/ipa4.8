@@ -1,0 +1,226 @@
+name: Build PC Remote
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ios:
+    name: Build iPhone IPA
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Find Xcode project
+        id: project
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_PATH="$(find "$GITHUB_WORKSPACE" -type d -name 'PCRemote.xcodeproj' -print -quit)"
+          if [ -z "$PROJECT_PATH" ]; then
+            echo "ERROR: PCRemote.xcodeproj not found"
+            exit 1
+          fi
+          echo "Using $PROJECT_PATH"
+          echo "path=$PROJECT_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Network.framework transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          API_FILE="$(find "$GITHUB_WORKSPACE" -type f -path '*/PCRemote/APIClient.swift' -print -quit)"
+          test -n "$API_FILE"
+          grep -q 'import Network' "$API_FILE"
+          grep -q 'NWConnection' "$API_FILE"
+          grep -q 'RawHTTPClient.send' "$API_FILE"
+          if grep -E 'URLSession\.shared\.(data|download|upload)' "$API_FILE"; then
+            echo "ERROR: PC Remote API must not use URLSession for private HTTP transport"
+            exit 1
+          fi
+          echo "Network.framework transport verified"
+
+      - name: Build iPhone app
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "${{ steps.project.outputs.path }}" \
+            -scheme PCRemote \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath "$GITHUB_WORKSPACE/ios-build" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            clean build
+
+      - name: Find built app
+        id: app
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find "$GITHUB_WORKSPACE/ios-build/Build/Products/Release-iphoneos" -type d -name 'PCRemote.app' -print -quit)"
+          if [ -z "$APP_PATH" ]; then
+            echo "ERROR: PCRemote.app not found"
+            exit 1
+          fi
+          echo "path=$APP_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Apply ATS fallback
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PLIST="${{ steps.app.outputs.path }}/Info.plist"
+          python3 - <<'PY'
+          import os, plistlib
+          path = os.environ['PLIST']
+          with open(path, 'rb') as f:
+              info = plistlib.load(f)
+          # PC Remote uses Network.framework for the actual private HTTP transport.
+          # These keys are only an additional compatibility fallback.
+          info['NSAppTransportSecurity'] = {
+              'NSAllowsArbitraryLoads': True,
+              'NSAllowsLocalNetworking': True,
+          }
+          info.setdefault(
+              'NSLocalNetworkUsageDescription',
+              'PC Remote uses LAN, ZeroTier and Tailscale to connect to your computer.'
+          )
+          with open(path, 'wb') as f:
+              plistlib.dump(info, f, fmt=plistlib.FMT_BINARY)
+          print('Version:', info.get('CFBundleShortVersionString'))
+          print('Build:', info.get('CFBundleVersion'))
+          PY
+
+      - name: Verify built Info.plist
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PLIST="${{ steps.app.outputs.path }}/Info.plist"
+          python3 - <<'PY'
+          import os, plistlib
+          with open(os.environ['PLIST'], 'rb') as f:
+              info = plistlib.load(f)
+          ats = info.get('NSAppTransportSecurity', {})
+          assert ats.get('NSAllowsArbitraryLoads') is True
+          assert ats.get('NSAllowsLocalNetworking') is True
+          print('Built Info.plist verified')
+          PY
+
+      - name: Create IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          rm -rf Payload PCRemote.ipa
+          mkdir -p Payload
+          cp -R "${{ steps.app.outputs.path }}" Payload/PCRemote.app
+          /usr/bin/zip -qry PCRemote.ipa Payload
+          test -s PCRemote.ipa
+          ls -lh PCRemote.ipa
+
+      - name: Verify packaged IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ipa-check
+          mkdir ipa-check
+          unzip -q PCRemote.ipa -d ipa-check
+          test -f ipa-check/Payload/PCRemote.app/Info.plist
+          echo "IPA package verified"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCRemote-IPA
+          path: PCRemote.ipa
+          if-no-files-found: error
+
+  windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Find Windows server
+        id: server
+        shell: pwsh
+        run: |
+          $gui = Get-ChildItem -Path $env:GITHUB_WORKSPACE -Recurse -File -Filter gui.py |
+            Where-Object { $_.FullName -match '[\\/]windows[\\/]gui\.py$' } |
+            Select-Object -First 1
+          if (-not $gui) { throw "windows/gui.py not found" }
+          Write-Host "Using $($gui.FullName)"
+          "gui=$($gui.FullName)" >> $env:GITHUB_OUTPUT
+          "dir=$($gui.Directory.FullName)" >> $env:GITHUB_OUTPUT
+
+      - name: Validate Python sources
+        shell: pwsh
+        run: |
+          python -m py_compile `
+            "${{ steps.server.outputs.dir }}\server.py" `
+            "${{ steps.server.outputs.dir }}\gui.py" `
+            "${{ steps.server.outputs.dir }}\corel_bridge.py"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip pyinstaller
+          $requirements = "${{ steps.server.outputs.dir }}\requirements.txt"
+          if (Test-Path $requirements) {
+            python -m pip install -r $requirements
+          }
+
+      - name: Build PC Remote Server
+        shell: pwsh
+        run: |
+          pyinstaller `
+            --noconfirm `
+            --clean `
+            --onefile `
+            --windowed `
+            --paths "${{ steps.server.outputs.dir }}" `
+            --collect-all mss `
+            --collect-all pyautogui `
+            --collect-all comtypes `
+            --hidden-import comtypes.client `
+            --hidden-import corel_bridge `
+            --hidden-import pyperclip `
+            --hidden-import psutil `
+            --hidden-import websocket `
+            --hidden-import winreg `
+            --name PCRemoteServer `
+            "${{ steps.server.outputs.gui }}"
+
+      - name: Prepare Windows package
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist\PCRemoteServer.exe")) {
+            throw "PCRemoteServer.exe was not created"
+          }
+          New-Item -ItemType Directory -Force -Path "PCRemote-Windows" | Out-Null
+          Copy-Item "dist\PCRemoteServer.exe" "PCRemote-Windows\PCRemoteServer.exe"
+          foreach ($name in @("SETUP_NETWORK_ADMIN.ps1", "SETUP_NETWORK_ADMIN.bat", "CHECK_NETWORK.ps1")) {
+            $source = Join-Path "${{ steps.server.outputs.dir }}" $name
+            if (Test-Path $source) { Copy-Item $source (Join-Path "PCRemote-Windows" $name) }
+          }
+          Get-ChildItem "PCRemote-Windows" | Format-Table Name,Length
+
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: PCRemote-Windows
+          path: PCRemote-Windows
+          if-no-files-found: error
