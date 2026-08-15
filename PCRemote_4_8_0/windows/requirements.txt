@@ -1,0 +1,11 @@
+Flask>=3.0,<4.0
+waitress>=3.0,<4.0
+pyinstaller>=6.0,<7.0
+mss>=10.0,<11.0
+Pillow>=11.0,<12.0
+PyAutoGUI>=0.9.54,<1.0
+pyperclip>=1.9,<2.0
+psutil>=6.0,<7.0
+comtypes>=1.4,<2.0
+
+websocket-client>=1.8,<2.0
