@@ -467,7 +467,7 @@ struct LoginView: View {
                             if let message = auth.message {
                                 Text(message)
                                     .font(.footnote)
-                                    .foregroundStyle(message.contains("создан") || message.contains("отправлено") ? .secondary : .red)
+                                    .foregroundStyle(message.contains("создан") || message.contains("отправлено") ? Color.secondary : Color.red)
                             }
 
                             Button {
