@@ -1,0 +1,176 @@
+name: Build Colorize Finance 3.1.1 Secure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/build-colorize-finance-secure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - name: Checkout public build host
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate ephemeral encryption key
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/colorize-secure"
+          mkdir -p "$RUNNER_TEMP/colorize-secure"
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$RUNNER_TEMP/colorize-secure/private.pem"
+          openssl pkey -in "$RUNNER_TEMP/colorize-secure/private.pem" -pubout -out "$RUNNER_TEMP/colorize-secure/public.pem"
+          mkdir -p colorize-build
+          cp "$RUNNER_TEMP/colorize-secure/public.pem" colorize-build/public.pem
+          rm -f colorize-build/READY colorize-build/payload-part*.json
+          git config user.name "Colorize Build Bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add colorize-build/public.pem
+          git commit -m "Colorize secure build key" || true
+          git push
+
+      - name: Wait for encrypted source payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 120); do
+            git pull --ff-only >/dev/null 2>&1 || true
+            if [ -f colorize-build/READY ] &&                [ -f colorize-build/payload-part1.json ] &&                [ -f colorize-build/payload-part2.json ] &&                [ -f colorize-build/payload-part3.json ] &&                [ -f colorize-build/payload-part4.json ]; then
+              echo "Encrypted source payload received"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for encrypted source payload"
+          exit 1
+
+      - name: Decrypt source payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --user cryptography >/dev/null
+          export PRIVATE_KEY="$RUNNER_TEMP/colorize-secure/private.pem"
+          export OUT_DIR="$RUNNER_TEMP/private-source"
+          rm -rf "$OUT_DIR"
+          mkdir -p "$OUT_DIR"
+          python3 - <<'PY'
+          import os, json, base64
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization, hashes
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
+          private_key = serialization.load_pem_private_key(
+              Path(os.environ["PRIVATE_KEY"]).read_bytes(), password=None
+          )
+          out = Path(os.environ["OUT_DIR"])
+          for n in range(1, 5):
+              env = json.loads(Path(f"colorize-build/payload-part{n}.json").read_text())
+              aes_key = private_key.decrypt(
+                  base64.b64decode(env["key"]),
+                  padding.OAEP(
+                      mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                      algorithm=hashes.SHA256(),
+                      label=None,
+                  ),
+              )
+              plain = AESGCM(aes_key).decrypt(
+                  base64.b64decode(env["iv"]),
+                  base64.b64decode(env["ciphertext"]),
+                  None,
+              )
+              files = json.loads(plain.decode("utf-8"))
+              for rel, content in files.items():
+                  p = out / rel
+                  p.parent.mkdir(parents=True, exist_ok=True)
+                  p.write_text(content, encoding="utf-8")
+          print("Decrypted files:", sum(1 for p in out.rglob("*") if p.is_file()))
+          PY
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Reconstruct Colorize Finance source
+        shell: bash
+        run: |
+          set -euxo pipefail
+          SRC="$RUNNER_TEMP/private-source"
+          cat "$SRC"/src/adcost/chunk-*.b64 | /usr/bin/base64 -D > "$RUNNER_TEMP/base.zip"
+          rm -rf "$RUNNER_TEMP/adcost-src" && mkdir -p "$RUNNER_TEMP/adcost-src"
+          unzip -q "$RUNNER_TEMP/base.zip" -d "$RUNNER_TEMP/adcost-src"
+          rsync -a "$SRC/patch/" "$RUNNER_TEMP/adcost-src/AdCost/"
+
+          cat "$SRC"/v2patch/chunk-*.b64 | /usr/bin/base64 -D > "$RUNNER_TEMP/v2.zip"
+          rm -rf "$RUNNER_TEMP/v2" && mkdir -p "$RUNNER_TEMP/v2"
+          unzip -q "$RUNNER_TEMP/v2.zip" -d "$RUNNER_TEMP/v2"
+          rsync -a "$RUNNER_TEMP/v2/" "$RUNNER_TEMP/adcost-src/AdCost/"
+          rsync -a "$SRC/v2hotfix/" "$RUNNER_TEMP/adcost-src/AdCost/"
+
+          cat "$SRC"/v21patch/chunk-*.b64 | /usr/bin/base64 -D > "$RUNNER_TEMP/v21.zip"
+          rm -rf "$RUNNER_TEMP/v21" && mkdir -p "$RUNNER_TEMP/v21"
+          unzip -q "$RUNNER_TEMP/v21.zip" -d "$RUNNER_TEMP/v21"
+          rsync -a "$RUNNER_TEMP/v21/" "$RUNNER_TEMP/adcost-src/AdCost/"
+          rsync -a "$SRC/v21hotfix/" "$RUNNER_TEMP/adcost-src/AdCost/"
+          rsync -a "$SRC/v22hotfix/" "$RUNNER_TEMP/adcost-src/AdCost/"
+
+          {
+            for i in 00 01 02 03 04 05; do cat "$SRC/v30patch/chunk-$i.b64"; done
+            cat "$SRC/v30patch/chunk-06a.b64" "$SRC/v30patch/chunk-06b.b64"
+            cat "$SRC/v30patch/chunk-07.b64"
+            cat "$SRC/v30patch/chunk-08a.b64" "$SRC/v30patch/chunk-08b.b64"
+            cat "$SRC/v30patch/chunk-09.b64"
+          } | tr -d '\n\r' | /usr/bin/base64 -D > "$RUNNER_TEMP/v30.zip"
+          rm -rf "$RUNNER_TEMP/v30" && mkdir -p "$RUNNER_TEMP/v30"
+          unzip -q "$RUNNER_TEMP/v30.zip" -d "$RUNNER_TEMP/v30"
+          rsync -a "$RUNNER_TEMP/v30/" "$RUNNER_TEMP/adcost-src/AdCost/"
+
+          python3 "$SRC/v301hotfix/apply.py" "$RUNNER_TEMP/adcost-src/AdCost"
+          rsync -a "$SRC/v31hotfix/" "$RUNNER_TEMP/adcost-src/AdCost/"
+
+          grep -q "MARKETING_VERSION: 3.1.1" "$RUNNER_TEMP/adcost-src/AdCost/project.yml"
+          grep -q "CURRENT_PROJECT_VERSION: 8" "$RUNNER_TEMP/adcost-src/AdCost/project.yml"
+          test -f "$RUNNER_TEMP/adcost-src/AdCost/AdCost/Views/Calculator/SignCalculatorView.swift"
+
+      - name: Generate Xcode project
+        working-directory: ${{ runner.temp }}/adcost-src/AdCost
+        run: xcodegen generate
+
+      - name: Build unsigned app
+        working-directory: ${{ runner.temp }}/adcost-src/AdCost
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s /Applications/Xcode_16.4.app/Contents/Developer || true
+          xcodebuild -version
+          rm -rf build Payload
+          xcodebuild             -project AdCost.xcodeproj             -scheme AdCost             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=''             CONFIGURATION_BUILD_DIR="$PWD/build"             clean build
+
+      - name: Verify and package IPA
+        working-directory: ${{ runner.temp }}/adcost-src/AdCost
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$(find build -maxdepth 1 -type d -name '*.app' | head -1)"
+          test -n "$APP"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | grep -Fx 'kz.colorize.adcost'
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Info.plist" | grep -Fx '3.1.1'
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Info.plist" | grep -Fx '8'
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          /usr/bin/zip -qry Colorize-Finance-3.1.1-unsigned.ipa Payload
+          unzip -tq Colorize-Finance-3.1.1-unsigned.ipa
+          shasum -a 256 Colorize-Finance-3.1.1-unsigned.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Colorize-Finance-3.1.1-IPA
+          path: ${{ runner.temp }}/adcost-src/AdCost/Colorize-Finance-3.1.1-unsigned.ipa
+          if-no-files-found: error
