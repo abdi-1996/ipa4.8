@@ -1,0 +1,22 @@
+name: Test macOS Runner 2026
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/test-macos-runner-2026.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Runner info
+        run: |
+          sw_vers
+          xcodebuild -version
+          uname -m
