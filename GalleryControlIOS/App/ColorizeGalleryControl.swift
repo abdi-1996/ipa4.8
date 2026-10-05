@@ -2,6 +2,40 @@ import SwiftUI
 import PhotosUI
 import UniformTypeIdentifiers
 
+struct ColorizeBrandLogo: View {
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ZStack {
+                Text("C")
+                    .font(.system(size: compact ? 30 : 34, weight: .black, design: .rounded))
+                    .foregroundStyle(.red)
+                    .offset(x: 3, y: 1)
+                Text("C")
+                    .font(.system(size: compact ? 30 : 34, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            Text("OLOR")
+                .font(.system(size: compact ? 22 : 26, weight: .black, design: .rounded))
+                .foregroundStyle(.red)
+            Text("I")
+                .font(.system(size: compact ? 22 : 26, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+            Text("ZE")
+                .font(.system(size: compact ? 22 : 26, weight: .black, design: .rounded))
+                .foregroundStyle(.red)
+        }
+        .overlay(alignment: .bottomTrailing) {
+            Text("ЖАРНАМА АГЕНТТІГІ")
+                .font(.system(size: compact ? 6 : 7, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .offset(y: compact ? 7 : 8)
+        }
+        .fixedSize()
+    }
+}
+
 struct RemoteMedia: Codable, Identifiable, Hashable {
     let id: Int64
     let name: String
@@ -54,7 +88,7 @@ final class GalleryStore: ObservableObject {
             await reload()
         } catch {
             status = "Ошибка подключения"
-            alertMessage = "Проверьте адрес, код подключения и что Colorize Gallery Bridge запущен на Android."
+            alertMessage = "Проверьте адрес, код подключения и что ColorizeFinance запущен на Android."
         }
     }
 
@@ -207,8 +241,11 @@ struct GalleryRootView: View {
                         .background(.ultraThinMaterial, in: Capsule())
                 }
             }
-            .navigationTitle("Colorize Gallery")
+            .navigationTitle("")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    ColorizeBrandLogo(compact: true)
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     PhotosPicker(selection: $selectedPicker, matching: .any(of: [.images, .videos])) {
                         Image(systemName: "plus")
@@ -247,7 +284,7 @@ struct GalleryRootView: View {
                     ShareSheet(items: [url])
                 }
             }
-            .alert("Colorize Gallery", isPresented: Binding(
+            .alert("ColorizeFinance", isPresented: Binding(
                 get: { store.alertMessage != nil },
                 set: { if !$0 { store.alertMessage = nil } }
             )) {
@@ -309,7 +346,7 @@ struct ConnectionView: View {
                               store.token.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 Section {
-                    Text("Адрес и код показываются в Colorize Gallery Bridge на вашем Android после входа и выдачи системного разрешения на фото и видео.")
+                    Text("Адрес и код показываются в ColorizeFinance на вашем Android после входа и выдачи системного разрешения на фото и видео.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
