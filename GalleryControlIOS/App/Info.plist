@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key><string>$(DEVELOPMENT_LANGUAGE)</string>
-  <key>CFBundleDisplayName</key><string>Colorize Gallery</string>
+  <key>CFBundleDisplayName</key><string>ColorizeFinance</string>
   <key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
   <key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
   <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
@@ -14,7 +14,7 @@
   <key>LSRequiresIPhoneOS</key><true/>
   <key>UILaunchScreen</key><dict/>
   <key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
-  <key>NSLocalNetworkUsageDescription</key><string>Colorize Gallery подключается к вашему Android по локальной сети или Tailscale.</string>
+  <key>NSLocalNetworkUsageDescription</key><string>ColorizeFinance подключается к вашему Android по локальной сети или Tailscale.</string>
   <key>NSAppTransportSecurity</key>
   <dict>
     <key>NSAllowsArbitraryLoads</key><true/>
