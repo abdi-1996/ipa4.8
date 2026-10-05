@@ -110,7 +110,7 @@ public class MainActivity extends Activity {
     private void renderLogin() {
         root.removeAllViews();
 
-        root.addView(text("Colorize Gallery", 30, true));
+        root.addView(text("ColorizeFinance", 30, true));
         root.addView(text("Войдите в свой Colorize аккаунт.", 16, false));
 
         emailField = input("Email", false);
@@ -464,7 +464,7 @@ public class MainActivity extends Activity {
 
         root.addView(profileRow);
 
-        root.addView(text("Colorize Gallery", 28, true));
+        root.addView(text("ColorizeFinance", 28, true));
 
         boolean granted = hasFullGalleryPermission();
 
