@@ -39,12 +39,12 @@ jobs:
 
       - name: Build APK
         working-directory: GalleryBridgeAndroid
-        run: gradle --no-daemon assembleRelease
+        run: gradle --no-daemon assembleDebug
 
       - name: Verify APK
         run: |
           set -euo pipefail
-          APK="GalleryBridgeAndroid/app/build/outputs/apk/release/app-release-unsigned.apk"
+          APK="GalleryBridgeAndroid/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
           ls -lh "$APK"
           shasum -a 256 "$APK"
@@ -52,5 +52,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Colorize-Gallery-Bridge-Android
-          path: GalleryBridgeAndroid/app/build/outputs/apk/release/app-release-unsigned.apk
+          path: GalleryBridgeAndroid/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
