@@ -10,7 +10,9 @@
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
   <application
-      android:allowBackup="false"\n      android:icon="@drawable/app_icon"\n      android:roundIcon="@drawable/app_icon"
+      android:allowBackup="false"
+      android:icon="@drawable/app_icon"
+      android:roundIcon="@drawable/app_icon"
       android:label="ColorizeFinance"
       android:theme="@style/AppTheme"
       android:usesCleartextTraffic="true">
