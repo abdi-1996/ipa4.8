@@ -73,6 +73,54 @@ public class MainActivity extends Activity {
         }
     }
 
+    private View buildColorizeBrandHeader() {
+        LinearLayout wrap = new LinearLayout(this);
+        wrap.setOrientation(LinearLayout.VERTICAL);
+        wrap.setGravity(Gravity.START);
+        wrap.setPadding(0, 0, 0, dp(14));
+
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        ImageView cMark = new ImageView(this);
+        cMark.setImageResource(kz.colorize.gallerybridge.R.drawable.app_icon);
+        cMark.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        LinearLayout.LayoutParams cParams = new LinearLayout.LayoutParams(dp(68), dp(68));
+        cParams.setMargins(0, 0, dp(6), 0);
+        cMark.setLayoutParams(cParams);
+        row.addView(cMark);
+
+        TextView word = new TextView(this);
+        android.text.SpannableString brand = new android.text.SpannableString("OLORIZE");
+        brand.setSpan(
+                new android.text.style.ForegroundColorSpan(Color.rgb(255, 20, 20)),
+                0, brand.length(),
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        brand.setSpan(
+                new android.text.style.ForegroundColorSpan(Color.WHITE),
+                5, 6,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        word.setText(brand);
+        word.setTextSize(31);
+        word.setTypeface(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD);
+        word.setLetterSpacing(-0.04f);
+        row.addView(word);
+
+        wrap.addView(row);
+
+        TextView sub = new TextView(this);
+        sub.setText("ЖАРНАМА АГЕНТТІГІ");
+        sub.setTextSize(12);
+        sub.setTextColor(Color.rgb(220, 220, 220));
+        LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(-2, -2);
+        subParams.setMargins(dp(76), -dp(16), 0, 0);
+        sub.setLayoutParams(subParams);
+        wrap.addView(sub);
+
+        return wrap;
+    }
+
     private TextView text(String value, float sp, boolean bold) {
         TextView v = new TextView(this);
         v.setText(value);
@@ -426,6 +474,8 @@ public class MainActivity extends Activity {
 
         root.removeAllViews();
 
+        root.addView(buildColorizeBrandHeader());
+
         LinearLayout profileRow = new LinearLayout(this);
         profileRow.setOrientation(LinearLayout.HORIZONTAL);
         profileRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -463,8 +513,6 @@ public class MainActivity extends Activity {
         profileRow.addView(profileText);
 
         root.addView(profileRow);
-
-        root.addView(text("ColorizeFinance", 28, true));
 
         boolean granted = hasFullGalleryPermission();
 
