@@ -6,8 +6,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: 5.10
-    MARKETING_VERSION: 1.0.0
-    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 1.2.0
+    CURRENT_PROJECT_VERSION: 2
 targets:
   ColorizeGalleryControl:
     type: application
@@ -17,8 +17,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: kz.colorize.gallerycontrol
-        PRODUCT_NAME: ColorizeGalleryControl
+        PRODUCT_NAME: ColorizeFinance
         INFOPLIST_FILE: App/Info.plist
         GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme:
       testTargets: []
