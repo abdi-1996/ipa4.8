@@ -1,4 +1,4 @@
-name: Build Colorize Gallery iOS
+name: Build ColorizeFinance iOS
 
 on:
   push:
@@ -26,6 +26,59 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Generate app icon
+        working-directory: GalleryControlIOS
+        run: |
+          set -euo pipefail
+          mkdir -p App/Assets.xcassets/AppIcon.appiconset
+          python3 - <<'PY'
+          import math
+          W=1024; H=1024
+          bg=(18,18,18)
+          pix=[list(bg)*W for _ in range(H)]
+          cx=cy=512
+          def paint_ring(r0,r1,start_deg,end_deg,color,ox=0,oy=0):
+              for y in range(H):
+                  dy=y-(cy+oy)
+                  for x in range(W):
+                      dx=x-(cx+ox)
+                      rr=(dx*dx+dy*dy)**0.5
+                      if r0<=rr<=r1:
+                          a=(math.degrees(math.atan2(-dy,dx))%360)
+                          if start_deg<=end_deg:
+                              ok=start_deg<=a<=end_deg
+                          else:
+                              ok=a>=start_deg or a<=end_deg
+                          if ok:
+                              pix[y][3*x:3*x+3]=color
+          # Red depth then white face, leaving a right-side opening.
+          paint_ring(235,365,45,315,(185,0,0),18,8)
+          paint_ring(235,365,45,315,(255,20,20),9,3)
+          paint_ring(235,350,45,315,(255,255,255),0,0)
+          with open("App/Assets.xcassets/AppIcon.appiconset/AppIcon.ppm","wb") as f:
+              f.write(f"P6\n{W} {H}\n255\n".encode())
+              for row in pix:
+                  f.write(bytes(row))
+          PY
+          sips -s format png App/Assets.xcassets/AppIcon.appiconset/AppIcon.ppm --out App/Assets.xcassets/AppIcon.appiconset/AppIcon.png >/dev/null
+          rm App/Assets.xcassets/AppIcon.appiconset/AppIcon.ppm
+          cat > App/Assets.xcassets/AppIcon.appiconset/Contents.json <<'JSON'
+          {
+            "images" : [
+              {
+                "filename" : "AppIcon.png",
+                "idiom" : "universal",
+                "platform" : "ios",
+                "size" : "1024x1024"
+              }
+            ],
+            "info" : { "author" : "xcode", "version" : 1 }
+          }
+          JSON
+          cat > App/Assets.xcassets/Contents.json <<'JSON'
+          { "info" : { "author" : "xcode", "version" : 1 } }
+          JSON
+
       - name: Generate project
         working-directory: GalleryControlIOS
         run: xcodegen generate
@@ -46,11 +99,11 @@ jobs:
           /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist" | grep -Fx 'kz.colorize.gallerycontrol'
           mkdir -p Payload
           cp -R "$APP" Payload/
-          /usr/bin/zip -qry Colorize-Gallery-Control-1.0.0-unsigned.ipa Payload
-          unzip -tq Colorize-Gallery-Control-1.0.0-unsigned.ipa
+          /usr/bin/zip -qry ColorizeFinance-1.2.0-unsigned.ipa Payload
+          unzip -tq ColorizeFinance-1.2.0-unsigned.ipa
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Colorize-Gallery-Control-iOS
-          path: GalleryControlIOS/Colorize-Gallery-Control-1.0.0-unsigned.ipa
+          name: ColorizeFinance-iOS-1.2.0
+          path: GalleryControlIOS/ColorizeFinance-1.2.0-unsigned.ipa
           if-no-files-found: error
